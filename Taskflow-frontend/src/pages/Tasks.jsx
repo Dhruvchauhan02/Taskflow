@@ -3,7 +3,13 @@ import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 
 import {
+  useLocation,
+  useNavigate,
+} from "react-router-dom"
+
+import {
   CalendarDays,
+  MessageCircle,
   Kanban,
   ListTodo,
   Search,
@@ -25,6 +31,8 @@ import TaskFilters from "../components/tasks/TaskFilters"
 import TaskForm from "../components/tasks/TaskForm"
 
 import ActivityTimeline from "../components/tasks/ActivityTimeline"
+
+import AiAssistant from "../components/AiAssistant"
 
 import {
   parseTags,
@@ -63,7 +71,15 @@ const viewOptions = [
   },
 ]
 
+const validPriorities = ["Low", "Medium", "High"]
+const validCategories = ["Work", "Personal", "Study", "Urgent", "Health", "Meetings"]
+const validRecurrences = ["None", "Daily", "Weekly", "Monthly"]
+
 function Tasks() {
+  const location =
+    useLocation()
+  const navigate =
+    useNavigate()
 
   const {
 
@@ -74,6 +90,8 @@ function Tasks() {
     updateTask,
 
     deleteTask,
+
+    loadTasks,
 
     loading,
 
@@ -118,6 +136,15 @@ function Tasks() {
     tagInput,
     setTagInput,
   ] = useState("")
+
+  const [
+    showAiChat,
+    setShowAiChat,
+  ] = useState(
+    Boolean(
+      location.state?.openAiAssistant
+    )
+  )
 
   const [
     selectedTask,
@@ -170,6 +197,39 @@ function Tasks() {
     )
 
   }, [sortBy])
+
+  useEffect(() => {
+    const openAssistant = () => {
+      setShowAiChat(true)
+    }
+
+    window.addEventListener(
+      "taskflow:open-ai-assistant",
+      openAssistant
+    )
+
+    return () => {
+      window.removeEventListener(
+        "taskflow:open-ai-assistant",
+        openAssistant
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!location.state?.openAiAssistant) {
+      return
+    }
+
+    navigate(location.pathname, {
+      replace: true,
+      state: {},
+    })
+  }, [
+    location.pathname,
+    location.state,
+    navigate,
+  ])
 
   const allTags =
     useMemo(() => {
@@ -331,6 +391,25 @@ function Tasks() {
     }
   }
 
+  const handleAiFill = async (text) => {
+    if (!text.trim()) return
+    try {
+      const { parseTaskFromText } = await import("../services/aiService.js")
+      const result = await parseTaskFromText(text)
+      if (result.title) setTaskTitle(result.title)
+      if (typeof result.description === "string") setDescription(result.description)
+      if (result.priority && validPriorities.includes(result.priority)) setPriority(result.priority)
+      if (result.dueDate) setDueDate(result.dueDate.slice(0,10))
+      if (result.reminderAt) setReminderAt(result.reminderAt.slice(0,16))
+      if (result.category && validCategories.includes(result.category)) setCategory(result.category)
+      if (result.recurrence && validRecurrences.includes(result.recurrence)) setRecurrence(result.recurrence)
+      if (Array.isArray(result.tags)) setTagInput(result.tags.join(", "))
+      toast.success("Form filled by AI!")
+    } catch (error) {
+      toast.error(error.response?.data?.message || "AI fill failed. Try again.")
+    }
+  }
+
   const editTask =
     async (
       id,
@@ -449,6 +528,7 @@ function Tasks() {
         tagInput={tagInput}
         setTagInput={setTagInput}
         onSubmit={addTask}
+        onAiFill={handleAiFill}
         isSubmitting={isSubmitting}
       />
 
@@ -683,6 +763,30 @@ function Tasks() {
           setSelectedTask(null)
         }
       />
+
+      <button
+        type="button"
+        onClick={() =>
+          setShowAiChat(
+            (value) => !value
+          )
+        }
+        className="fixed bottom-6 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] bg-white text-slate-950 shadow-2xl shadow-black/30 ring-1 ring-white/[0.2] transition hover:-translate-y-0.5 hover:bg-slate-100 sm:right-6"
+        aria-label="Toggle AI Assistant"
+      >
+        <MessageCircle size={21} />
+      </button>
+
+      {showAiChat && (
+        <AiAssistant
+          open={showAiChat}
+          onClose={() =>
+            setShowAiChat(false)
+          }
+          onTasksChanged={loadTasks}
+          tasks={tasks}
+        />
+      )}
 
     </DashboardLayout>
   )

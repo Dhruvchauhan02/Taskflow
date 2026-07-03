@@ -1,4 +1,5 @@
-import { CalendarPlus, Plus } from "lucide-react"
+import { useState } from "react"
+import { CalendarPlus, Plus, Sparkles } from "lucide-react"
 import {
   TASK_CATEGORIES,
   TASK_PRIORITIES,
@@ -54,9 +55,32 @@ function TaskForm({
   tagInput,
   setTagInput,
   onSubmit,
+  onAiFill,
 }) {
+  const [aiText, setAiText] = useState("")
+
   return (
     <section className="mb-4 rounded-[1.5rem] bg-white/[0.052] p-4 shadow-xl shadow-black/10 ring-1 ring-white/[0.07] backdrop-blur-lg sm:p-5">
+      <div className="mb-4 rounded-[1.25rem] bg-black/[0.1] p-3.5 ring-1 ring-white/[0.07] sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            placeholder="Describe your task in plain English..."
+            value={aiText}
+            onChange={(event) => setAiText(event.target.value)}
+            className="min-w-0 flex-1 rounded-[1rem] bg-black/[0.18] px-3.5 py-3 text-sm text-white outline-none ring-1 ring-white/[0.075] transition placeholder:text-slate-600 focus:bg-black/30 focus:ring-white/25"
+          />
+          <button
+            type="button"
+            onClick={() => onAiFill(aiText)}
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[1rem] bg-white/[0.94] px-4 text-sm font-semibold text-slate-950 shadow-md shadow-white/10 transition hover:-translate-y-0.5 hover:bg-slate-100"
+          >
+            <Sparkles size={16} />
+            Fill with AI
+          </button>
+        </div>
+      </div>
+
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-[1rem] bg-white/[0.92] text-slate-950 shadow-md shadow-white/5">
           <CalendarPlus size={16} />
@@ -212,6 +236,7 @@ function TaskForm({
             </FormField>
 
             <button
+              type="button"
               onClick={onSubmit}
               className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-[1rem] bg-white/[0.94] px-4 text-sm font-semibold text-slate-950 shadow-md shadow-white/10 transition hover:-translate-y-0.5 hover:bg-slate-100"
             >

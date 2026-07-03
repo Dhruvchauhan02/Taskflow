@@ -1,6 +1,95 @@
 import Task from "../models/Task.js"
 
-const prepareTaskPayload = (
+export const createActivity = (type, message) => ({
+  id:
+    globalThis.crypto?.randomUUID?.() ||
+    `${Date.now()}-${type}-${Math.random().toString(16).slice(2)}`,
+  type,
+  message,
+  at: new Date(),
+})
+
+const readableFieldNames = {
+  title: "title",
+  description: "description",
+  status: "status",
+  priority: "priority",
+  category: "category",
+  dueDate: "due date",
+  reminderDate: "reminder",
+  recurringType: "recurrence",
+  tags: "tags",
+}
+
+const normalizeComparableValue = (value, field) => {
+  if (value instanceof Date) {
+    return field === "dueDate"
+      ? value.toISOString().slice(0, 10)
+      : value.toISOString().slice(0, 16)
+  }
+
+  if (Array.isArray(value)) {
+    return JSON.stringify([...value].sort())
+  }
+
+  if (value === undefined || value === null) {
+    return ""
+  }
+
+  const stringValue = String(value)
+
+  if (field === "dueDate") {
+    return stringValue.slice(0, 10)
+  }
+
+  if (field === "reminderDate") {
+    return stringValue.slice(0, 16)
+  }
+
+  return stringValue
+}
+
+export const getUpdateActivities = (task, payload) => {
+  const changedFields = Object.keys(readableFieldNames).filter((field) => {
+    if (!Object.prototype.hasOwnProperty.call(payload, field)) {
+      return false
+    }
+
+    return (
+      normalizeComparableValue(task[field], field) !==
+      normalizeComparableValue(payload[field], field)
+    )
+  })
+
+  if (changedFields.length === 0) {
+    return []
+  }
+
+  if (
+    changedFields.length === 1 &&
+    changedFields[0] === "status"
+  ) {
+    return [
+      createActivity(
+        "status",
+        `Status changed to ${payload.status}`
+      ),
+    ]
+  }
+
+  const fieldList = changedFields
+    .map((field) => readableFieldNames[field])
+    .join(", ")
+
+  return [
+    createActivity(
+      "updated",
+      `Updated ${fieldList}`
+    ),
+  ]
+}
+
+export const prepareTaskPayload = (
   payload,
   existingTask = null
 ) => {
@@ -10,6 +99,7 @@ const prepareTaskPayload = (
 
   delete taskPayload.user
   delete taskPayload.reminderSent
+  delete taskPayload.activities
 
   if (
     Object.prototype.hasOwnProperty.call(
@@ -81,10 +171,18 @@ export const createTask =
   async (req, res) => {
 
     try {
+      const payload =
+        prepareTaskPayload(req.body)
 
       const task =
         await Task.create({
-          ...prepareTaskPayload(req.body),
+          ...payload,
+          activities: [
+            createActivity(
+              "created",
+              "Task created"
+            ),
+          ],
           user: req.user._id,
     })
 
@@ -143,16 +241,39 @@ export const updateTask =
           })
       }
 
+      const payload =
+        prepareTaskPayload(
+          req.body,
+          task
+        )
+
+      const activities =
+        getUpdateActivities(
+          task,
+          payload
+        )
+
+      const update =
+        activities.length > 0
+          ? {
+              $set: payload,
+              $push: {
+                activities: {
+                  $each: activities,
+                },
+              },
+            }
+          : {
+              $set: payload,
+            }
+
       const updatedTask =
         await Task.findOneAndUpdate(
           {
             _id: req.params.id,
             user: req.user._id,
           },
-          prepareTaskPayload(
-            req.body,
-            task
-          ),
+          update,
 
           {
             new: true,

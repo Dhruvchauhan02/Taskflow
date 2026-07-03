@@ -26,22 +26,16 @@ function Home() {
         </h1>
 
         <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-400">
-          A calm task system with a refined dashboard, elegant task cards, and a focused workspace for daily execution.
+          Sign in to continue to your workspace, review your tasks, and keep your day moving with a focused dashboard.
         </p>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-8 flex flex-col items-start gap-4">
           <Link
-            to="/dashboard"
+            to="/login"
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-xl shadow-white/10 transition hover:-translate-y-0.5 hover:bg-slate-100"
           >
-            Open dashboard
+            Login
             <ArrowRight size={17} />
-          </Link>
-          <Link
-            to="/tasks"
-            className="inline-flex h-12 items-center justify-center rounded-2xl bg-white/10 px-5 text-sm font-medium text-white ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:bg-white/15"
-          >
-            Manage tasks
           </Link>
         </div>
 

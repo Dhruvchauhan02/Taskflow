@@ -4,6 +4,7 @@ import dotenv from "dotenv"
 import connectDB from "./config/db.js"
 import taskRoutes from "./routes/taskRoutes.js"
 import authRoutes from "./routes/authRoutes.js"
+import aiRoutes from "./routes/aiRoutes.js"
 import { startReminderJob } from "./jobs/reminderJob.js"
 
 dotenv.config()
@@ -20,6 +21,10 @@ app.use(
 app.use(
   "/api/tasks",
   taskRoutes
+)
+app.use(
+  "/api/ai",
+  aiRoutes
 )
 app.get("/", (req, res) => {
   res.json({

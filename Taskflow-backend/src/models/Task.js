@@ -81,6 +81,27 @@ const taskSchema =
         },
       ],
 
+      activities: [
+        {
+          id: {
+            type: String,
+            required: true,
+          },
+          type: {
+            type: String,
+            required: true,
+          },
+          message: {
+            type: String,
+            required: true,
+          },
+          at: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+
     },
 
     {

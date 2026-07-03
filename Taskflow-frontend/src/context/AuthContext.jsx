@@ -18,6 +18,9 @@ const defaultUserSettings = {
   theme: "dark",
 }
 
+const userStorageKey =
+  "taskflowUser"
+
 export const applyThemePreference = (theme = "dark") => {
   const root =
     document.documentElement
@@ -66,9 +69,13 @@ const normalizeAuthData = (authData) => {
 
 const readStoredUser = () => {
   try {
+    localStorage.removeItem(
+      userStorageKey
+    )
+
     const storedUser =
-      localStorage.getItem(
-        "taskflowUser"
+      sessionStorage.getItem(
+        userStorageKey
       )
 
     return storedUser
@@ -77,8 +84,11 @@ const readStoredUser = () => {
         )
       : null
   } catch {
+    sessionStorage.removeItem(
+      userStorageKey
+    )
     localStorage.removeItem(
-      "taskflowUser"
+      userStorageKey
     )
     return null
   }
@@ -104,8 +114,12 @@ export const AuthProvider =
         )
       }
 
-      localStorage.setItem(
-        "taskflowUser",
+      localStorage.removeItem(
+        userStorageKey
+      )
+
+      sessionStorage.setItem(
+        userStorageKey,
         JSON.stringify(
           nextUser
         )
@@ -125,8 +139,12 @@ export const AuthProvider =
 
     const logout = () => {
 
+      sessionStorage.removeItem(
+        userStorageKey
+      )
+
       localStorage.removeItem(
-        "taskflowUser"
+        userStorageKey
       )
 
       localStorage.removeItem(
@@ -163,8 +181,12 @@ export const AuthProvider =
         )
       }
 
-      localStorage.setItem(
-        "taskflowUser",
+      localStorage.removeItem(
+        userStorageKey
+      )
+
+      sessionStorage.setItem(
+        userStorageKey,
 
         JSON.stringify(
           newUserData

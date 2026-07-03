@@ -2,16 +2,22 @@ import axios from "axios"
 
 const getToken = () => {
   try {
+    localStorage.removeItem(
+      "taskflowUser"
+    )
 
   const storedUser =
     JSON.parse(
-      localStorage.getItem(
+      sessionStorage.getItem(
         "taskflowUser"
       )
     )
 
   return storedUser?.token
   } catch {
+    sessionStorage.removeItem(
+      "taskflowUser"
+    )
     localStorage.removeItem(
       "taskflowUser"
     )

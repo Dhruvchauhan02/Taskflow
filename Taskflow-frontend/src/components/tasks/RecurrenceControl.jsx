@@ -2,7 +2,7 @@ import { RECURRENCE_OPTIONS } from "../../utils/taskConfig"
 
 function RecurrenceControl({ value, onChange }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {RECURRENCE_OPTIONS.map((option) => (
         <button
           key={option}

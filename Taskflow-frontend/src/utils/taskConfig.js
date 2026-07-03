@@ -16,7 +16,6 @@ export const RECURRENCE_OPTIONS = [
   "Daily",
   "Weekly",
   "Monthly",
-  "Custom",
 ]
 
 export const SORT_OPTIONS = [

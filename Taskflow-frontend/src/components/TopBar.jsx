@@ -9,7 +9,11 @@ import {
   Sparkles,
   User,
 } from "lucide-react"
-import { Link }
+import {
+  Link,
+  useLocation,
+  useNavigate,
+}
   from "react-router-dom"
 
 import { useState }
@@ -22,6 +26,26 @@ function TopBar() {
     = useState(false)
   const { user, logout } =
   useAuth()
+  const location =
+    useLocation()
+  const navigate =
+    useNavigate()
+
+  const openAssistant = () => {
+    if (location.pathname === "/tasks") {
+      window.dispatchEvent(
+        new Event("taskflow:open-ai-assistant")
+      )
+      return
+    }
+
+    navigate("/tasks", {
+      state: {
+        openAiAssistant: true,
+      },
+    })
+  }
+
   return (
     <header
       className="
@@ -75,6 +99,8 @@ function TopBar() {
       </label>
 
       <button
+        type="button"
+        onClick={openAssistant}
         className="
           inline-flex
           h-11

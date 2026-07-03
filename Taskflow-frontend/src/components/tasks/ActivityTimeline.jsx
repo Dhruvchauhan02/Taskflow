@@ -12,10 +12,11 @@ function ActivityTimeline({ activities = [] }) {
         </h3>
       </div>
 
-      <div className="space-y-3">
-        {activities.slice().reverse().map((item, index) => (
+      {activities.length > 0 ? (
+        <div className="space-y-3">
+          {activities.slice().reverse().map((item, index) => (
           <motion.div
-            key={item.id}
+            key={item.id || `${item.at}-${index}`}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.03 }}
@@ -29,8 +30,13 @@ function ActivityTimeline({ activities = [] }) {
               {formatDateTime(item.at)}
             </p>
           </motion.div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-600">
+          No activity recorded yet.
+        </p>
+      )}
     </div>
   )
 }
