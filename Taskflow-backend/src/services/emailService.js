@@ -1,10 +1,52 @@
 import nodemailer from "nodemailer"
+import dns from "node:dns/promises"
 
 let transporter
+let transporterPromise = null
 let smtpVerified = false
 let smtpVerifyPromise = null
 
-const getTransporter = () => {
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com"
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465)
+const SMTP_SECURE = process.env.SMTP_SECURE
+  ? process.env.SMTP_SECURE === "true"
+  : SMTP_PORT === 465
+
+const resolveSmtpHost = async () => {
+  if (process.env.SMTP_FORCE_IPV4 === "false") {
+    return SMTP_HOST
+  }
+
+  const addresses = await dns.resolve4(SMTP_HOST)
+
+  if (!addresses.length) {
+    throw new Error(`No IPv4 addresses found for ${SMTP_HOST}`)
+  }
+
+  return addresses[0]
+}
+
+const createGmailTransporter = async () => {
+  const host = await resolveSmtpHost()
+
+  return nodemailer.createTransport({
+    host,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 10000),
+    tls: {
+      servername: SMTP_HOST,
+    },
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  })
+}
+
+const getTransporter = async () => {
   if (transporter) {
     return transporter
   }
@@ -16,23 +58,18 @@ const getTransporter = () => {
     return null
   }
 
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 10000),
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  })
+  if (!transporterPromise) {
+    transporterPromise = createGmailTransporter()
+  }
+
+  transporter = await transporterPromise
 
   return transporter
 }
 
 export const verifySmtpConnection = async () => {
   try {
-    const mailer = getTransporter()
+    const mailer = await getTransporter()
 
     if (!mailer || smtpVerified) {
       return smtpVerified
@@ -49,6 +86,8 @@ export const verifySmtpConnection = async () => {
     return true
   } catch (error) {
     smtpVerifyPromise = null
+    transporterPromise = null
+    transporter = null
     smtpVerified = false
     console.error("SMTP connection failed:", error.message)
     return false
@@ -77,7 +116,7 @@ const escapeHtml = (value) => {
 
 export const sendTaskReminderEmail = async ({ task, user }) => {
   try {
-    const mailer = getTransporter()
+    const mailer = await getTransporter()
 
     if (!mailer) {
       throw new Error("Email transporter is not configured")
