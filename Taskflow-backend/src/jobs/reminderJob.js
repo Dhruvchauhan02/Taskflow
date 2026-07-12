@@ -3,11 +3,12 @@ import cron from "node-cron"
 import Task from "../models/Task.js"
 import {
   sendTaskReminderEmail,
-  verifySmtpConnection,
+  verifyEmailProvider,
 } from "../services/emailService.js"
 
 let reminderTask = null
 let isReminderJobRunning = false
+const REMINDER_DEBUG = process.env.REMINDER_DEBUG === "true"
 
 const getDueReminderTasks = async (now) => {
   return Task.find({
@@ -37,7 +38,14 @@ export const processDueReminders = async () => {
   isReminderJobRunning = true
 
   try {
-    const dueTasks = await getDueReminderTasks(new Date())
+    const now = new Date()
+    const dueTasks = await getDueReminderTasks(now)
+
+    if (REMINDER_DEBUG) {
+      console.log(
+        `Reminder scan at ${now.toISOString()}: found ${dueTasks.length} due task(s)`
+      )
+    }
 
     for (const task of dueTasks) {
       try {
@@ -52,8 +60,15 @@ export const processDueReminders = async () => {
           task.user.notificationsEnabled === false ||
           task.user.reminderNotifications === false
         ) {
+          console.log(
+            `Skipping reminder for task ${task._id}: notifications disabled for ${task.user.email}`
+          )
           continue
         }
+
+        console.log(
+          `Processing reminder for task ${task._id} (${task.title}) to ${task.user.email}; reminderDate=${task.reminderDate?.toISOString?.()}`
+        )
 
         const claimedTask = await Task.findOneAndUpdate(
           {
@@ -80,6 +95,11 @@ export const processDueReminders = async () => {
         )
 
         if (!claimedTask) {
+          if (REMINDER_DEBUG) {
+            console.log(
+              `Skipping reminder for task ${task._id}: already claimed or no longer due`
+            )
+          }
           continue
         }
 
@@ -98,6 +118,9 @@ export const processDueReminders = async () => {
                 reminderSent: false,
               },
             }
+          )
+          console.error(
+            `Reminder for task ${claimedTask._id} was not delivered; it will be retried on the next scan.`
           )
         }
       } catch (error) {
@@ -120,8 +143,8 @@ export const startReminderJob = async () => {
       return reminderTask
     }
 
-    verifySmtpConnection().catch((error) => {
-      console.error("SMTP connection failed:", error.message)
+    verifyEmailProvider().catch((error) => {
+      console.error("Email provider check failed:", error.message)
     })
 
     reminderTask = cron.schedule(
@@ -137,6 +160,12 @@ export const startReminderJob = async () => {
     )
 
     console.log("Reminder cron started")
+
+    setTimeout(() => {
+      processDueReminders().catch((error) => {
+        console.error("Initial reminder scan failed:", error.message)
+      })
+    }, 5000)
 
     return reminderTask
   } catch (error) {

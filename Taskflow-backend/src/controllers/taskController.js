@@ -49,6 +49,18 @@ const normalizeComparableValue = (value, field) => {
   return stringValue
 }
 
+const logReminderSchedule = (task, action) => {
+  if (!task?.reminderDate) {
+    return
+  }
+
+  const reminderDate = new Date(task.reminderDate)
+
+  console.log(
+    `Reminder ${action} for task ${task._id}: ${reminderDate.toISOString()}`
+  )
+}
+
 export const getUpdateActivities = (task, payload) => {
   const changedFields = Object.keys(readableFieldNames).filter((field) => {
     if (!Object.prototype.hasOwnProperty.call(payload, field)) {
@@ -186,6 +198,8 @@ export const createTask =
           user: req.user._id,
     })
 
+      logReminderSchedule(task, "scheduled")
+
       res.status(201).json(task)
 
     } catch (error) {
@@ -279,6 +293,8 @@ export const updateTask =
             returnDocument: "after",
           }
         )
+
+      logReminderSchedule(updatedTask, "updated")
 
       res.json(updatedTask)
 

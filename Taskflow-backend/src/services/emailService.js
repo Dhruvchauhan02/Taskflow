@@ -1,97 +1,35 @@
-import nodemailer from "nodemailer"
-import dns from "node:dns/promises"
+const RESEND_API_URL = "https://api.resend.com/emails"
+const EMAIL_TIMEOUT_MS = Number(process.env.EMAIL_TIMEOUT_MS || 30000)
+const REMINDER_DEBUG = process.env.REMINDER_DEBUG === "true"
 
-let transporter
-let transporterPromise = null
-let smtpVerified = false
-let smtpVerifyPromise = null
+const getEmailConfig = () => {
+  const apiKey = process.env.RESEND_API_KEY
+  const from = process.env.EMAIL_FROM
+  const replyTo = process.env.EMAIL_REPLY_TO
 
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com"
-const SMTP_PORT = Number(process.env.SMTP_PORT || 465)
-const SMTP_SECURE = process.env.SMTP_SECURE
-  ? process.env.SMTP_SECURE === "true"
-  : SMTP_PORT === 465
-
-const resolveSmtpHost = async () => {
-  if (process.env.SMTP_FORCE_IPV4 === "false") {
-    return SMTP_HOST
-  }
-
-  const addresses = await dns.resolve4(SMTP_HOST)
-
-  if (!addresses.length) {
-    throw new Error(`No IPv4 addresses found for ${SMTP_HOST}`)
-  }
-
-  return addresses[0]
-}
-
-const createGmailTransporter = async () => {
-  const host = await resolveSmtpHost()
-
-  return nodemailer.createTransport({
-    host,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 30000),
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 30000),
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 30000),
-    tls: {
-      servername: SMTP_HOST,
-    },
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  })
-}
-
-const getTransporter = async () => {
-  if (transporter) {
-    return transporter
-  }
-
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  if (!apiKey || !from) {
     console.warn(
-      "Email reminders disabled: EMAIL_USER and EMAIL_PASS are required"
+      "Email reminders disabled: RESEND_API_KEY and EMAIL_FROM are required"
     )
     return null
   }
 
-  if (!transporterPromise) {
-    transporterPromise = createGmailTransporter()
+  return {
+    apiKey,
+    from,
+    replyTo,
   }
-
-  transporter = await transporterPromise
-
-  return transporter
 }
 
-export const verifySmtpConnection = async () => {
-  try {
-    const mailer = await getTransporter()
+export const verifyEmailProvider = async () => {
+  const config = getEmailConfig()
 
-    if (!mailer || smtpVerified) {
-      return smtpVerified
-    }
-
-    if (!smtpVerifyPromise) {
-      smtpVerifyPromise = mailer.verify()
-    }
-
-    await smtpVerifyPromise
-    smtpVerified = true
-    console.log("SMTP connected")
-
-    return true
-  } catch (error) {
-    smtpVerifyPromise = null
-    transporterPromise = null
-    transporter = null
-    smtpVerified = false
-    console.error("SMTP connection failed:", error.message)
+  if (!config) {
     return false
   }
+
+  console.log("Email provider ready: Resend")
+  return true
 }
 
 const formatDate = (date) => {
@@ -114,12 +52,49 @@ const escapeHtml = (value) => {
     .replaceAll("'", "&#039;")
 }
 
+const sendWithResend = async ({ apiKey, from, message }) => {
+  const cleanMessage = Object.fromEntries(
+    Object.entries(message).filter(([, value]) => value !== undefined)
+  )
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(cleanMessage),
+    signal: AbortSignal.timeout(EMAIL_TIMEOUT_MS),
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const detail =
+      data?.message ||
+      data?.error?.message ||
+      JSON.stringify(data) ||
+      `Resend request failed with ${response.status}`
+
+    throw new Error(detail)
+  }
+
+  if (REMINDER_DEBUG) {
+    console.log(`Resend accepted email request: ${JSON.stringify(data)}`)
+  }
+
+  return {
+    ...data,
+    from,
+  }
+}
+
 export const sendTaskReminderEmail = async ({ task, user }) => {
   try {
-    const mailer = await getTransporter()
+    const config = getEmailConfig()
 
-    if (!mailer) {
-      throw new Error("Email transporter is not configured")
+    if (!config) {
+      throw new Error("Email provider is not configured")
     }
 
     const dueDate = formatDate(task.dueDate)
@@ -130,29 +105,33 @@ export const sendTaskReminderEmail = async ({ task, user }) => {
     const safeDueDate = escapeHtml(dueDate)
     const safePriority = escapeHtml(priority)
 
-    const info = await mailer.sendMail({
-      from: `"TaskFlow" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: `TaskFlow Reminder: ${task.title}`,
-      text: [
-        `Task: ${task.title}`,
-        `Description: ${description}`,
-        `Due date: ${dueDate}`,
-        `Priority: ${priority}`,
-      ].join("\n"),
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>TaskFlow Reminder</h2>
-          <p><strong>Task:</strong> ${safeTitle}</p>
-          <p><strong>Description:</strong> ${safeDescription}</p>
-          <p><strong>Due date:</strong> ${safeDueDate}</p>
-          <p><strong>Priority:</strong> ${safePriority}</p>
-        </div>
-      `,
+    const info = await sendWithResend({
+      ...config,
+      message: {
+        from: config.from,
+        to: [user.email],
+        reply_to: config.replyTo,
+        subject: `TaskFlow Reminder: ${task.title}`,
+        text: [
+          `Task: ${task.title}`,
+          `Description: ${description}`,
+          `Due date: ${dueDate}`,
+          `Priority: ${priority}`,
+        ].join("\n"),
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <h2>TaskFlow Reminder</h2>
+            <p><strong>Task:</strong> ${safeTitle}</p>
+            <p><strong>Description:</strong> ${safeDescription}</p>
+            <p><strong>Due date:</strong> ${safeDueDate}</p>
+            <p><strong>Priority:</strong> ${safePriority}</p>
+          </div>
+        `,
+      },
     })
 
     console.log(
-      `Reminder sent for task ${task._id} to ${user.email}`
+      `Reminder sent for task ${task._id} to ${user.email}; provider=resend; messageId=${info.id || "unknown"}`
     )
 
     return info
