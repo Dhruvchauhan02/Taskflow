@@ -75,7 +75,7 @@ export const processDueReminders = async () => {
             },
           },
           {
-            new: true,
+            returnDocument: "after",
           }
         )
 
@@ -120,7 +120,9 @@ export const startReminderJob = async () => {
       return reminderTask
     }
 
-    await verifySmtpConnection()
+    verifySmtpConnection().catch((error) => {
+      console.error("SMTP connection failed:", error.message)
+    })
 
     reminderTask = cron.schedule(
       "* * * * *",

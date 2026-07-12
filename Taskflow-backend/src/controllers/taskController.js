@@ -276,7 +276,7 @@ export const updateTask =
           update,
 
           {
-            new: true,
+            returnDocument: "after",
           }
         )
 

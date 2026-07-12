@@ -18,6 +18,9 @@ const getTransporter = () => {
 
   transporter = nodemailer.createTransport({
     service: "gmail",
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 10000),
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
